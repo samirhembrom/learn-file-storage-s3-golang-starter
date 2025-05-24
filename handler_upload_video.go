@@ -6,6 +6,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -90,7 +91,25 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	key := getAssetPath(mediaType)
+	filePath, err := filepath.Abs(dst.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not find file", err)
+		return
+	}
+
+	aspectRatio, err := getVideoAspectRatio(filePath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not get aspect ratios", err)
+	}
+
+	prefix := aspectRatio
+	if aspectRatio == "16:9" {
+		prefix = "landscape"
+	} else if aspectRatio == "9:16" {
+		prefix = "portrait"
+	}
+
+	key := prefix + "/" + getAssetPath(mediaType)
 	_, err = cfg.s3Client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
 		Key:         aws.String(key),
