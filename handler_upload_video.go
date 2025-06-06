@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -136,13 +137,41 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	url := cfg.getOjectUrl(key)
-	video.VideoURL = &url
+	val := cfg.s3Bucket + "," + key
+	video.VideoURL = &val
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to update video data", err)
 		return
 	}
 
+	video, err = cfg.dbVideoToSignedVideo(video)
+	if err != nil {
+		respondWithError(
+			w,
+			http.StatusInternalServerError,
+			"Unable to generate video presigned link",
+			err,
+		)
+		return
+	}
+
 	respondWithJSON(w, http.StatusOK, video)
+}
+
+func generatePresignedURL(
+	s3Client *s3.Client,
+	bucket, key string,
+	expireTime time.Duration,
+) (string, error) {
+	client := s3.NewPresignClient(s3Client)
+	req, err := client.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(expireTime))
+	if err != nil {
+		return "", err
+	}
+
+	return req.URL, nil
 }
