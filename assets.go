@@ -11,9 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 )
 
 func (cfg apiConfig) ensureAssetsDir() error {
@@ -130,23 +127,4 @@ func processVideoForFastStart(filePath string) (string, error) {
 	}
 
 	return newFilePath, nil
-}
-
-func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
-	url := video.VideoURL
-	if url == nil {
-		return video, nil
-	}
-	if len(strings.Split(*url, ",")) != 2 {
-		return video, nil
-	}
-	bucket := strings.Split(*url, ",")[0]
-	key := strings.Split(*url, ",")[1]
-
-	presignedUrl, err := generatePresignedURL(cfg.s3Client, bucket, key, 5*time.Minute)
-	if err != nil {
-		return video, err
-	}
-	video.VideoURL = &presignedUrl
-	return video, nil
 }
